@@ -1,0 +1,36 @@
+{
+	"format_version": 2,
+	"metadata": {
+		"authors": [
+			"IDOLLERD"
+		]
+	},
+	"header": {
+		"name": "Sync Inventories",
+		"description": "Encare o mundo de uma forma diferente, com inventários sincronizados entre os players, para você e os amigos!",
+		"min_engine_version": [1,21,120],
+		"uuid": "a123c5c6-0424-44dd-a6e9-6360a177847a",
+		"version": [1,0,0]
+	},
+	"modules": [
+		{
+			"type": "data",
+			"uuid": "5ed1414b-5a5e-4ea6-b335-e7ae33d86909",
+			"version": [1,0,0]
+		},
+		{
+			"description": "Modulo de Script JavaScript",
+			"language": "javascript",
+			"type": "script",
+			"uuid": "bb5f9788-3399-42b4-995c-b90404f972c7",
+			"version": [1,0,0],
+			"entry": "scripts/index.js"
+		}
+	],
+	"dependencies": [
+		{
+			"module_name": "@minecraft/server",
+			"version": "2.5.0"
+		}
+	]
+}
