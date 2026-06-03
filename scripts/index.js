@@ -77,16 +77,16 @@ function sincronizarSlotEspecifico(fonte, grupo, infoSlot) {
     }
 }
 
-// --- FUNÇÃO DE SEGURANÇA PARA QUEM GANHA A TAG --- (REMOÇÃO PROGRAMADA > Melhor para evitar erros de rop de itens e duplicação)
+// --- FUNÇÃO DE SEGURANÇA PARA QUEM ENTRA --- (REMOÇÃO PROGRAMADA > Melhor para evitar erros de rop de itens e duplicação)
 function verificarEForçarSincronizacao(jogadorNovo) {
     const todosJogadores = world.getAllPlayers();
     
-    // Encontra os outros que já tinham a tag sync antes dele
-    const outrosComSync = todosJogadores.filter(p => p.hasTag("sync") && p.id !== jogadorNovo.id);
+    // Encontra os outros que já estão no mundo (Sem precisar checar tag)
+    const outrosJogadores = todosJogadores.filter(p => p.id !== jogadorNovo.id);
 
-    if (outrosComSync.length > 0) {
+    if (outrosJogadores.length > 0) {
         // Pega o jogador mais antigo online
-        const jogadorMaisAntigo = outrosComSync[0];
+        const jogadorMaisAntigo = outrosJogadores[0];
         
         const fotoNovo = tirarFotoDetalhada(jogadorNovo);
         const fotoAntigo = tirarFotoDetalhada(jogadorMaisAntigo);
@@ -120,7 +120,7 @@ function verificarEForçarSincronizacao(jogadorNovo) {
                 equipAlvo.setEquipment(slotName, itemEquip ? itemEquip.clone() : undefined);
             }
 
-            jogadorNovo.sendMessage("§a[Sync Inventories]§r A tag §async§r foi adicionada em você, seus itens eram diferentes do grupo. Eles foram substituídos pelos de §b" + jogadorMaisAntigo.name + "§r para evitar erros.\n");
+            jogadorNovo.sendMessage("§a[Sync Inventories]§r O sistema é automático agora. Seus itens foram substituídos pelos de §b" + jogadorMaisAntigo.name + "§r para manter o grupo igual.\n");
             
             // Cria fotos novas idênticas para os dois imediatamente para não dar conflito posterior
             const fotoAtualizada = tirarFotoDetalhada(jogadorNovo);
@@ -143,34 +143,31 @@ world.afterEvents.playerSpawn.subscribe((event) => {
         if (!jogador || !world.getAllPlayers().some(p => p.id === jogador.id)) return; // Se o jogador desconecta retorna nada para parar a função
 
         jogador.sendMessage(
-            "§a[Sync Inventories]§r O addon de sincronização de inventário e armadura está ativo!\n" +
-            "§eNota:§r Para sincronizar com outros jogadores, você precisa da tag §b'sync'§r.\n" +
-            "§7Use o comando ou peça para algum operador usar:§e /tag @s add sync.\n" +
-            "Uma nova versão removerá o uso da TAG e mantera atividade 100%"
+            "§a[Sync Inventories]§r O addon de sincronização está ativo!\n" +
+            "§eNota:§r A sincronização agora acontece de forma 100% automática para todos que entram."
         );
 
-        if (jogador.hasTag("sync")) {
-            verificarEForçarSincronizacao(jogador);
-        }
+        // Chama a função direto, não precisa mais do "if(jogador.hasTag)"
+        verificarEForçarSincronizacao(jogador);
+        
     }, 100); 
 });
 
 // --- LOOP PRINCIPAL ---
 system.runInterval(() => {
     const todosJogadores = world.getAllPlayers();
-    const grupoSync = todosJogadores.filter(p => p.hasTag("sync"));
-
-    // Limpeza de memória
+    
+    // Limpeza de memória (Olha todos os jogadores, não apenas um grupo com tag)
     for (const idSalvo of fotosInventario.keys()) {
-        const aindaTaNoGrupo = grupoSync.some(p => p.id === idSalvo);
-        if (!aindaTaNoGrupo) {
+        const aindaTaNoServidor = todosJogadores.some(p => p.id === idSalvo);
+        if (!aindaTaNoServidor) {
             fotosInventario.delete(idSalvo);
         }
     }
 
-    if (trancado || grupoSync.length === 0) return; // Se trancado, como mencionado anteriormente, para e retorna nada
+    if (trancado || todosJogadores.length === 0) return; // Se trancado, como mencionado anteriormente, para e retorna nada
 
-    for (const jogador of grupoSync) {
+    for (const jogador of todosJogadores) {
         if (!fotosInventario.has(jogador.id)) {
             verificarEForçarSincronizacao(jogador);
             continue; 
@@ -188,7 +185,8 @@ system.runInterval(() => {
                     trancado = true;
 
                     // Agora passa o objeto inteiro (fotoAtual[i]) para saber se é 'inv' ou 'equip'
-                    sincronizarSlotEspecifico(jogador, grupoSync, fotoAtual[i]);
+                    // Repassamos a lista 'todosJogadores' inteira
+                    sincronizarSlotEspecifico(jogador, todosJogadores, fotoAtual[i]);
                     
                     system.runTimeout(() => { trancado = false; }, 1);
                 }
