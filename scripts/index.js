@@ -1,46 +1,83 @@
-import { world, system } from "@minecraft/server";
+import { world, system, EquipmentSlot } from "@minecraft/server";
+// Added EquipmentSlot para melhor manuseio
 
 const fotosInventario = new Map();
 let trancado = false;
 
-// Função para tirar a foto do inventário (Sua função original)
+// Listagem dos espaços (Mão entra como equipável, lembrar à frente)
+const EQUIP_SLOTS = [
+    EquipmentSlot.Offhand, 
+    EquipmentSlot.Head, 
+    EquipmentSlot.Chest, 
+    EquipmentSlot.Legs, 
+    EquipmentSlot.Feet
+];
+
+// Mantendo a função de "print" dos status atuais
 function tirarFotoDetalhada(jogador) {
-    const container = jogador.getComponent("inventory").container;
-    let slots = [];
+    const container = jogador.getComponent("inventory").container; // Inventário
+    const equipaveis = jogador.getComponent("equippable"); // Nova aba para monitorar os equipáveis
+    let slots = []; // Lista para guardar os itens
+
+    // Capturando o inventário normal > Item dentro do container se existir item, se não, vazio
     for (let i = 0; i < container.size; i++) {
         const item = container.getItem(i);
         if (item) {
-            slots.push({ id: i, data: `${item.typeId}:${item.amount}` });
+            slots.push({ tipo: "inv", id: i, data: `${item.typeId}:${item.amount}` });
         } else {
-            slots.push({ id: i, data: "vazio" });
+            slots.push({ tipo: "inv", id: i, data: "vazio" });
+        }
+    }
+
+    // Agora aqui captura os equipaveis, com loop for para os slots citados antes
+    for (const slotName of EQUIP_SLOTS) {
+        const item = equipaveis.getEquipment(slotName);
+        if (item) {
+            slots.push({ tipo: "equip", id: slotName, data: `${item.typeId}:${item.amount}` });
+        } else {
+            slots.push({ tipo: "equip", id: slotName, data: "vazio" });
         }
     }
     return slots;
 }
 
-// Função para sincronizar um slot específico (Sua função original)
-function sincronizarSlotEspecifico(fonte, grupo, slotIndex) {
-    const invFonte = fonte.getComponent("inventory").container;
-    const itemFonte = invFonte.getItem(slotIndex);
+// --- Função de sicnronização de espaçes, individual.. ---
+function sincronizarSlotEspecifico(fonte, grupo, infoSlot) {
+    const { tipo, id } = infoSlot; // Pega se é inventário ou equipamento e qual o espaço > Usado posteriormente
+    
+    // Pega o item do jogador fonte > Que iniciou o trigger de sincronia e tals
+    let itemFonte;
+    if (tipo === "inv") {
+        itemFonte = fonte.getComponent("inventory").container.getItem(id);
+    } else {
+        itemFonte = fonte.getComponent("equippable").getEquipment(id);
+    }
 
+    // Passa para todos do grupo > Sincronizando inventários das pessoas
     for (const alvo of grupo) {
         if (alvo.id === fonte.id) continue;
-        const invAlvo = alvo.getComponent("inventory").container;
         
-        if (itemFonte) {
-            invAlvo.setItem(slotIndex, itemFonte.clone());
+        // Aplica o item no "alvo" correto
+        if (tipo === "inv") {
+            const invAlvo = alvo.getComponent("inventory").container;
+            invAlvo.setItem(id, itemFonte ? itemFonte.clone() : undefined); // Undefined sendo um "Salvador" em caso de erro
         } else {
-            invAlvo.setItem(slotIndex, null);
+            const equipAlvo = alvo.getComponent("equippable");
+            equipAlvo.setEquipment(id, itemFonte ? itemFonte.clone() : undefined);
         }
         
-        const fotoAlvo = fotosInventario.get(alvo.id);
+        // Atualiza a "foto" na memória para não dar loop infinito...
+        const fotoAlvo = fotosInventario.get(alvo.id); // PEga pelo id do User na memoria
         if (fotoAlvo) {
-            fotoAlvo[slotIndex].data = itemFonte ? `${itemFonte.typeId}:${itemFonte.amount}` : "vazio";
+            const slotParaAtualizar = fotoAlvo.find(s => s.tipo === tipo && s.id === id);
+            if (slotParaAtualizar) {
+                slotParaAtualizar.data = itemFonte ? `${itemFonte.typeId}:${itemFonte.amount}` : "vazio"; // Salvador vazio
+            }
         }
     }
 }
 
-// --- FUNÇÃO DE SEGURANÇA PARA QUEM GANHA A TAG ---
+// --- FUNÇÃO DE SEGURANÇA PARA QUEM GANHA A TAG --- (REMOÇÃO PROGRAMADA > Melhor para evitar erros de rop de itens e duplicação)
 function verificarEForçarSincronizacao(jogadorNovo) {
     const todosJogadores = world.getAllPlayers();
     
@@ -62,43 +99,54 @@ function verificarEForçarSincronizacao(jogadorNovo) {
             }
         }
 
-        // Se o inventário de quem ganhou a tag for diferente do mais antigo, o do mais antigo domina!
+        // Se o inventário/armadura for diferente do mais antigo, o do mais antigo domina a hierarquia e passa os itens dele para os demais.
         if (temDiferenca) {
-            trancado = true;
+            trancado = true; // Tranca para evitar alguns erros
+            
             const invAlvo = jogadorNovo.getComponent("inventory").container;
             const invFonte = jogadorMaisAntigo.getComponent("inventory").container;
+            const equipAlvo = jogadorNovo.getComponent("equippable");
+            const equipFonte = jogadorMaisAntigo.getComponent("equippable");
 
+            // Copia o inventário normal
             for (let i = 0; i < invFonte.size; i++) {
                 const itemFonte = invFonte.getItem(i);
-                invAlvo.setItem(i, itemFonte ? itemFonte.clone() : null);
+                invAlvo.setItem(i, itemFonte ? itemFonte.clone() : undefined);
+            }
+            
+            // Copia armaduras e off-hand
+            for (const slotName of EQUIP_SLOTS) {
+                const itemEquip = equipFonte.getEquipment(slotName);
+                equipAlvo.setEquipment(slotName, itemEquip ? itemEquip.clone() : undefined);
             }
 
-            jogadorNovo.sendMessage("§a[Sync Inventories]§r A tag §async§r foi adicionada em você, seu inventário era diferente do grupo. Ele foi substituído pelo de §b" + jogadorMaisAntigo.name + "§r para evitar erros.\n");
+            jogadorNovo.sendMessage("§a[Sync Inventories]§r A tag §async§r foi adicionada em você, seus itens eram diferentes do grupo. Eles foram substituídos pelos de §b" + jogadorMaisAntigo.name + "§r para evitar erros.\n");
             
-            // Cria fotos novas idênticas para os dois imediatamente
+            // Cria fotos novas idênticas para os dois imediatamente para não dar conflito posterior
             const fotoAtualizada = tirarFotoDetalhada(jogadorNovo);
             fotosInventario.set(jogadorNovo.id, fotoAtualizada);
             
             system.runTimeout(() => { trancado = false; }, 5);
         }
     } else {
-        // Se ele for o primeirão, só tira a foto dele
+        // Se ele for o "primeirão", só tira a foto dele
         fotosInventario.set(jogadorNovo.id, tirarFotoDetalhada(jogadorNovo));
     }
 }
 
-// Detecta quando o jogador entra no mundo
+// --- Detecta quando o jogador entra no mundo ---
 world.afterEvents.playerSpawn.subscribe((event) => {
     const jogador = event.player;
     if (!event.initialSpawn) return;
 
     system.runTimeout(() => {
-        if (!jogador || !world.getAllPlayers().some(p => p.id === jogador.id)) return;
+        if (!jogador || !world.getAllPlayers().some(p => p.id === jogador.id)) return; // Se o jogador desconecta retorna nada para parar a função
 
         jogador.sendMessage(
-            "§a[Sync Inventories]§r O addon de sincronização de inventário está ativo neste mundo!\n" +
-            "§eNota:§r Para sincronizar seu inventário com outros jogadores, você precisa da tag §b'sync'§r.\n" +
-            "§7Use o comando ou peça para algum operador usar:§e /tag @s add sync"
+            "§a[Sync Inventories]§r O addon de sincronização de inventário e armadura está ativo!\n" +
+            "§eNota:§r Para sincronizar com outros jogadores, você precisa da tag §b'sync'§r.\n" +
+            "§7Use o comando ou peça para algum operador usar:§e /tag @s add sync.\n" +
+            "Uma nova versão removerá o uso da TAG e mantera atividade 100%"
         );
 
         if (jogador.hasTag("sync")) {
@@ -107,12 +155,12 @@ world.afterEvents.playerSpawn.subscribe((event) => {
     }, 100); 
 });
 
-// LOOP PRINCIPAL (Ajustado para não mexer em quem acabou de ganhar a tag)
+// --- LOOP PRINCIPAL ---
 system.runInterval(() => {
     const todosJogadores = world.getAllPlayers();
     const grupoSync = todosJogadores.filter(p => p.hasTag("sync"));
 
-    // Limpeza de memória: Se o cara perdeu a tag ou saiu, deleta a foto dele na hora!
+    // Limpeza de memória
     for (const idSalvo of fotosInventario.keys()) {
         const aindaTaNoGrupo = grupoSync.some(p => p.id === idSalvo);
         if (!aindaTaNoGrupo) {
@@ -120,13 +168,12 @@ system.runInterval(() => {
         }
     }
 
-    if (trancado || grupoSync.length === 0) return;
+    if (trancado || grupoSync.length === 0) return; // Se trancado, como mencionado anteriormente, para e retorna nada
 
     for (const jogador of grupoSync) {
-        // SE O JOGADOR NÃO TEM FOTO NA MEMÓRIA: Significa que ele acabou de ganhar a tag!
         if (!fotosInventario.has(jogador.id)) {
             verificarEForçarSincronizacao(jogador);
-            continue; // Pula ele neste tick para dar tempo de atualizar
+            continue; 
         }
 
         const fotoAtual = tirarFotoDetalhada(jogador);
@@ -140,7 +187,8 @@ system.runInterval(() => {
                     mudouAlgo = true;
                     trancado = true;
 
-                    sincronizarSlotEspecifico(jogador, grupoSync, i);
+                    // Agora passa o objeto inteiro (fotoAtual[i]) para saber se é 'inv' ou 'equip'
+                    sincronizarSlotEspecifico(jogador, grupoSync, fotoAtual[i]);
                     
                     system.runTimeout(() => { trancado = false; }, 1);
                 }
