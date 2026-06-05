@@ -120,7 +120,7 @@ function verificarEForcarSincronizacao(jogadorNovo) {
                 equipAlvo.setEquipment(slotName, itemEquip ? itemEquip.clone() : undefined);
             }
 
-            jogadorNovo.sendMessage("§a[Sync Inventories]§r O sistema é automático agora. Seus itens foram substituídos pelos de §b" + jogadorMaisAntigo.name + "§r para manter o grupo igual.\n");
+            jogadorNovo.sendMessage("§a[Sync Inventories]§r Seus itens foram substituídos pelos de §b" + jogadorMaisAntigo.name + "§r para manter o grupo igual.\n");
             
             // Cria fotos novas idênticas para os dois imediatamente para não dar conflito posterior
             const fotoAtualizada = tirarFotoDetalhada(jogadorNovo);
@@ -144,7 +144,7 @@ world.afterEvents.playerSpawn.subscribe((event) => {
 
         jogador.sendMessage(
             "§a[Sync Inventories]§r O addon de sincronização está ativo!\n" +
-            "§eNota:§r A sincronização agora acontece de forma 100% automática para todos que entram."
+            "§eNota:§r A sincronização agora acontece de forma 100% automática para todos que entram no mundo."
         );
 
         // Chama a função direto, não precisa mais do "if(jogador.hasTag)"

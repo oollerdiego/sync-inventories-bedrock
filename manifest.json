@@ -10,7 +10,7 @@
 		"description": "Sincronize seu inventário com os demais jogadores!",
 		"min_engine_version": [1,21,120],
 		"uuid": "a123c5c6-0424-44dd-a6e9-6360a177847a",
-		"version": [1,0,1]
+		"version": [1,1,0]
 	},
 	"modules": [
 		{
