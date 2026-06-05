@@ -78,7 +78,7 @@ function sincronizarSlotEspecifico(fonte, grupo, infoSlot) {
 }
 
 // --- FUNÇÃO DE SEGURANÇA PARA QUEM ENTRA --- (REMOÇÃO PROGRAMADA > Melhor para evitar erros de rop de itens e duplicação)
-function verificarEForçarSincronizacao(jogadorNovo) {
+function verificarEForcarSincronizacao(jogadorNovo) {
     const todosJogadores = world.getAllPlayers();
     
     // Encontra os outros que já estão no mundo (Sem precisar checar tag)
@@ -148,7 +148,7 @@ world.afterEvents.playerSpawn.subscribe((event) => {
         );
 
         // Chama a função direto, não precisa mais do "if(jogador.hasTag)"
-        verificarEForçarSincronizacao(jogador);
+        verificarEForcarSincronizacao(jogador);
         
     }, 100); 
 });
@@ -165,11 +165,11 @@ system.runInterval(() => {
         }
     }
 
-    if (trancado || todosJogadores.length === 0) return; // Se trancado, como mencionado anteriormente, para e retorna nada
+    if (trancado || todosJogadores.length === 0) return; // Se trancado, como mencionado anteriormente, para e retorna nada, valida tbm se ter jogador (Desconexão ou crash causava erro)
 
     for (const jogador of todosJogadores) {
         if (!fotosInventario.has(jogador.id)) {
-            verificarEForçarSincronizacao(jogador);
+            verificarEForcarSincronizacao(jogador);
             continue; 
         }
 
@@ -198,4 +198,4 @@ system.runInterval(() => {
             }
         }
     }
-}, 2);
+}, 2); // Loop > 20 ticks = 1 > Segundo. 2 = 0.1s  
